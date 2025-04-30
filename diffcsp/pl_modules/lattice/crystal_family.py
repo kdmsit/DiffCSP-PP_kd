@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
-from diffcsp.pl_modules.lattice.matrix import logm, expm, sqrtm
+from pl_modules.lattice.matrix import logm, expm, sqrtm
 
 class CrystalFamily(nn.Module):
 
