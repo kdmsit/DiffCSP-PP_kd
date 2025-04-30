@@ -116,7 +116,6 @@ def run(cfg: DictConfig) -> None:
     hydra.utils.log.info("Instantiating the Trainer")
     trainer = pl.Trainer(default_root_dir=hydra_dir,callbacks=callbacks,
         deterministic=cfg.train.deterministic,
-        resume_from_checkpoint=5,
         **cfg.train.pl_trainer,
     )
 
