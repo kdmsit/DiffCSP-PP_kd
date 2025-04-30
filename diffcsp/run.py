@@ -71,20 +71,6 @@ def run(cfg: DictConfig) -> None:
     if cfg.train.deterministic:
         seed_everything(cfg.train.random_seed)
 
-    if cfg.train.pl_trainer.fast_dev_run:
-        hydra.utils.log.info(
-            f"Debug mode <{cfg.train.pl_trainer.fast_dev_run=}>. "
-            f"Forcing debugger friendly configuration!"
-        )
-        # Debuggers don't like GPUs nor multiprocessing
-        cfg.train.pl_trainer.gpus = 0
-        cfg.data.datamodule.num_workers.train = 0
-        cfg.data.datamodule.num_workers.val = 0
-        cfg.data.datamodule.num_workers.test = 0
-
-        # Switch wandb mode to offline to prevent online logging
-        cfg.logging.wandb.mode = "offline"
-
     # Hydra run directory
     hydra_dir = Path(HydraConfig.get().run.dir)
 
@@ -114,23 +100,6 @@ def run(cfg: DictConfig) -> None:
     # Instantiate the callbacks
     callbacks: List[Callback] = build_callbacks(cfg=cfg)
 
-    # Logger instantiation/configuration
-    wandb_logger = None
-    if "wandb" in cfg.logging:
-        hydra.utils.log.info("Instantiating <WandbLogger>")
-        wandb_config = cfg.logging.wandb
-        wandb_logger = WandbLogger(
-            **wandb_config,
-            settings=wandb.Settings(start_method="fork"),
-            tags=cfg.core.tags,
-        )
-        hydra.utils.log.info("W&B is now watching <{cfg.logging.wandb_watch.log}>!")
-        wandb_logger.watch(
-            model,
-            log=cfg.logging.wandb_watch.log,
-            log_freq=cfg.logging.wandb_watch.log_freq,
-        )
-
     # Store the YaML config separately into the wandb dir
     yaml_conf: str = OmegaConf.to_yaml(cfg=cfg)
     (hydra_dir / "hparams.yaml").write_text(yaml_conf)
@@ -147,7 +116,6 @@ def run(cfg: DictConfig) -> None:
     hydra.utils.log.info("Instantiating the Trainer")
     trainer = pl.Trainer(
         default_root_dir=hydra_dir,
-        logger=wandb_logger,
         callbacks=callbacks,
         deterministic=cfg.train.deterministic,
         check_val_every_n_epoch=cfg.logging.val_check_interval,
@@ -163,10 +131,6 @@ def run(cfg: DictConfig) -> None:
 
     hydra.utils.log.info("Starting testing!")
     trainer.test(datamodule=datamodule)
-
-    # Logger closing to release resources/avoid multi-run conflicts
-    if wandb_logger is not None:
-        wandb_logger.experiment.finish()
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")
